@@ -1,5 +1,8 @@
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -32,11 +35,13 @@ import javax.crypto.spec.SecretKeySpec;
 
 import java.security.*;
 
+//NEED TO MAKE EVERY COMMUNICATION CRYPTED
 public class Handler extends Thread {
 	private final Socket socket;
 	private PrintWriter pw;
 	private BufferedReader br;
-	private String name;
+	public String name;
+	private String db;
 	private Key key;
 	private byte[] iv;
 
@@ -45,6 +50,7 @@ public class Handler extends Thread {
 		this.pw=new PrintWriter(this.socket.getOutputStream(),true);
 		this.br=new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
 		this.name = "";
+		this.db="./db.txt";
 		this.key=null;
 		this.iv=null;
 	}
@@ -202,6 +208,57 @@ public class Handler extends Thread {
 
 	}
 
+	public static byte[] saltGen(){//GENERATES SALT
+        SecureRandom random = new SecureRandom();
+        byte[] salt = new byte[2];
+        random.nextBytes(salt);
+        return salt;
+	}
+	
+	public static byte[] hash(byte[] input, String algorithm) throws NoSuchAlgorithmException {//takes in a byte array and an hash algorithm. gives out the hash
+        MessageDigest md = MessageDigest.getInstance(algorithm);
+
+        byte[] output = md.digest(input);
+        return output;
+    }
+
+	public boolean passwordChecker(String plainPW) throws IOException, NoSuchAlgorithmException {
+		//this needs to check if hashed password+hash is equal to the saved one together with the given username
+		FileReader reader=new FileReader(this.db);
+		BufferedReader br=new BufferedReader(reader);
+		String s,hash,password;
+		String[] ss;
+		byte[] passwordB,hashB;
+		boolean found=false;
+		while(br.readLine()!=null){
+			s=br.readLine();
+			ss=s.split(":",3);
+			if(ss[0].equals(this.name)){
+				password=plainPW+ss[2];
+				passwordB=password.getBytes("UTF-8");
+				hashB=hash(passwordB,"SHA-256");
+				hash=toHex(hashB);
+				if(ss[1].equals(hash)){
+					found=true;
+				}
+			}
+		}
+		br.close();
+		return found;
+	}
+
+	public void passwordWriter(String plainPW) throws IOException, NoSuchAlgorithmException {
+		FileWriter writer=new FileWriter(this.db,true);
+		byte[] saltB=saltGen();
+		String salt=toHex(saltB);
+
+		String pwNsa=plainPW+salt;
+		byte[] hash=hash(pwNsa.getBytes("UTF-8"),"SHA-256");
+		String hashedPW=toHex(hash);
+		writer.write("\n"+this.name+":"+hashedPW+":"+salt+"\n");
+		writer.close();
+	}
+
 	@Override
 	public void run(){
 		try{
@@ -210,29 +267,41 @@ public class Handler extends Thread {
 			
 			Base64.Encoder encoder=Base64.getEncoder();//ENCODER OBJECT
 			Base64.Decoder decoder=Base64.getDecoder();//DECODER OBJECT
-
+			this.handshake(this.pw,this.br,encoder,decoder);
 			while(i==0){
-				this.handshake(this.pw,this.br,encoder,decoder);
-				System.out.println("Handshake over");
-
-				pw.println("1 Login - 2 Sign in%n");
+				
+				pw.println("1 Login - 2 Sign in\n");
 				response=this.br.readLine();
 				int r=Integer.parseInt(response);
 				if(r==1){
-					this.pw.println("%nYou selected the option: LOGIN%nType in your username");
+					this.pw.println("\nYou selected the option: LOGIN\nType in your username");
 					String username=this.br.readLine();
 					if(!username.equals("")){
-						this.setName(username);
-						this.pw.println("%nNow Type in your password");
+						this.name=username;
+						this.pw.println("\nNow type in your password");
 						String password=this.br.readLine();
-						//FUNCTION TO CONFRONT PASSWORD WITH DATABASE return boolean value
+						if(passwordChecker(password)){
+							System.out.println("OK");//autentication
+						}
 					}else{
-						pw.println("%nSomething went wrong!");
+						pw.println("\nSomething went wrong!");
 					}
 
 				}else{
 					if(r==2){
-						//SIGN IN
+						this.pw.println("\nYou selected the option: SIGN IN\nType in your username:");
+						String username=this.br.readLine();
+						if(!username.equals("")){
+							this.name=username;
+							this.pw.println("\nNow type in your password:");
+							String password=this.br.readLine();
+							this.pw.println("\nNow please retype your password:");
+							if(password.equals(this.br.readLine())){
+								this.passwordWriter(password);
+							}else{
+								pw.println("\nThe passwords do not correspond");
+							}
+						}
 					}else{
 						//SOMETHING WENT WRONG
 					}

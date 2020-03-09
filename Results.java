@@ -230,7 +230,7 @@ public class Results extends Thread{
         Receiver r=new Receiver(results.br);//YOU STILL NEED TO START THE THREAD
 		
 		results.handshake(results.pw, results.br,encoder,decoder);
-        System.out.println("Handshake over");
+
 		r.start();
 		while(true){
 			String msg=System.console().readLine();
