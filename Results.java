@@ -1,6 +1,7 @@
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -37,11 +38,13 @@ public class Results extends Thread{
 	private BufferedReader br;
 	private Key key=null;
 	private byte[] iv=null;
+	private Base64.Encoder encoder;
 
 	public Results() throws UnknownHostException, IOException {
 		this.socket=new Socket("localhost",this.port);
 		this.pw=new PrintWriter(socket.getOutputStream(),true);
 		this.br=new BufferedReader(new InputStreamReader(socket.getInputStream()));
+		this.encoder=Base64.getEncoder();
 		this.key=null;
 		this.iv=null;
 	}
@@ -217,11 +220,23 @@ public class Results extends Thread{
 		}else{
 			System.out.println("Something went Wrong!");
 		}
-    }
+	}
+	
+	public void sendCrypted(String msgS) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException,
+			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+		if(!msgS.isEmpty()){
+			byte[] msgB=msgS.getBytes("UTF-8");
+			
+			msgB=encrypt(this.key, this.iv, msgB);
+			msgS=this.encoder.encodeToString(msgB);
+
+			this.pw.println(msgS);
+		}
+	}
 
     public static void main(String args[])throws FileNotFoundException,IOException, InvalidKeyException,
 			NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, IllegalBlockSizeException,
-			BadPaddingException, InterruptedException {
+			BadPaddingException, InterruptedException, InvalidAlgorithmParameterException {
 		Base64.Encoder encoder=Base64.getEncoder();
 		Base64.Decoder decoder=Base64.getDecoder();
 		
@@ -230,6 +245,8 @@ public class Results extends Thread{
         Receiver r=new Receiver(results.br);//YOU STILL NEED TO START THE THREAD
 		
 		results.handshake(results.pw, results.br,encoder,decoder);
+		r.setKey(results.key);
+		r.setIV(results.iv);
 
 		r.start();
 		while(true){
@@ -237,7 +254,7 @@ public class Results extends Thread{
 			if(msg.equals("break")){
 				results.socket.close();
 			}else{
-			results.pw.println(msg);
+				results.sendCrypted(msg);
 			}
 		}
 		
