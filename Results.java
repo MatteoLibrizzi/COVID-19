@@ -41,7 +41,7 @@ public class Results extends Thread{
 	private Base64.Encoder encoder;
 
 	public Results() throws UnknownHostException, IOException {
-		this.socket=new Socket("localhost",this.port);
+		this.socket=new Socket("localhost",port);
 		this.pw=new PrintWriter(socket.getOutputStream(),true);
 		this.br=new BufferedReader(new InputStreamReader(socket.getInputStream()));
 		this.encoder=Base64.getEncoder();
@@ -222,16 +222,13 @@ public class Results extends Thread{
 		}
 	}
 	
-	public void sendCrypted(String msgS) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException,
+	public void sendCrypted(byte[] msgB) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException,
 			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
-		if(!msgS.isEmpty()){
-			byte[] msgB=msgS.getBytes("UTF-8");
 			
-			msgB=encrypt(this.key, this.iv, msgB);
-			msgS=this.encoder.encodeToString(msgB);
-
-			this.pw.println(msgS);
-		}
+		msgB=encrypt(this.key, this.iv, msgB);
+		String msgS=this.encoder.encodeToString(msgB);
+		this.pw.println(msgS);
+		
 	}
 
     public static void main(String args[])throws FileNotFoundException,IOException, InvalidKeyException,
@@ -254,7 +251,7 @@ public class Results extends Thread{
 			if(msg.equals("break")){
 				results.socket.close();
 			}else{
-				results.sendCrypted(msg);
+				results.sendCrypted(msg.getBytes());
 			}
 		}
 		

@@ -48,11 +48,13 @@ public class Receiver extends Thread{
 				String msgS=br.readLine();
 				byte[] msgB=decrypt(this.key, this.iv, decoder.decode(msgS));
 				msgS=new String(msgB);
-                System.out.println(String.format("%n"+msgS));
+                System.out.println("\n"+msgS);
             }
         }catch(IOException e){
             e.printStackTrace();
-        }catch(java.lang.NullPointerException e){} catch (InvalidKeyException e) {
+        }catch(java.lang.NullPointerException e){
+			e.printStackTrace();
+		} catch (InvalidKeyException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (NoSuchAlgorithmException e) {

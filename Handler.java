@@ -48,6 +48,7 @@ public class Handler extends Thread {
 	private boolean auth;
 	private Base64.Encoder encoder;
 	private Base64.Decoder decoder;
+	private int specialization;
 
 	public Handler(Socket socket) throws IOException {
 		this.socket = socket;
@@ -236,6 +237,14 @@ public class Handler extends Thread {
 		return output;
 	}
 
+	public void setSpec(int spec){
+		this.specialization=spec;
+	}
+
+	public int getSpec(){
+		return this.specialization;
+	}
+
 	public boolean passwordChecker(String plainPW) throws IOException, NoSuchAlgorithmException {
 		// this needs to check if hashed password+hash is equal to the saved one
 		// together with the given username
@@ -247,14 +256,17 @@ public class Handler extends Thread {
 		boolean found = false;
 		while (br.readLine() != null) {
 			s = br.readLine();
-			ss = s.split(":", 3);
+			ss = s.split(":", 4);
 			if (ss[0].equals(this.name)) {
 				password = plainPW + ss[2];
 				passwordB = password.getBytes("UTF-8");
 				hashB = hash(passwordB, "SHA-256");
 				hash = toHex(hashB);
+				System.out.println(" "+hash+" ");
+				System.out.println(" "+ss[1]+" ");
 				if (ss[1].equals(hash)) {
 					found = true;
+					System.out.println("Same");
 				}
 			}
 		}
@@ -270,20 +282,16 @@ public class Handler extends Thread {
 		String pwNsa = plainPW + salt;
 		byte[] hash = hash(pwNsa.getBytes("UTF-8"), "SHA-256");
 		String hashedPW = toHex(hash);
-		writer.write("\n" + this.name + ":" + hashedPW + ":" + salt + "\n");
+		writer.write("\n" + this.name + ":" + hashedPW + ":" + salt + ":" + this.getSpec() + "\n");
 		writer.close();
 	}
 
-	public void sendCrypted(String msgS) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException,
+	public void sendCrypted(byte[] msgB) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException,
 			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {//THIS NEEDS TO TAKE IN BYTES (remember to change it in results too)
-		if(!msgS.isEmpty()){
-			byte[] msgB=msgS.getBytes("UTF-8");
-			
-			msgB=encrypt(this.key, this.iv, msgB);
-			msgS=this.encoder.encodeToString(msgB);
-
-			this.pw.println(msgS);
-		}
+		
+		msgB=encrypt(this.key, this.iv, msgB);
+		String msgS=this.encoder.encodeToString(msgB);
+		this.pw.println(msgS);
 	}
 
 	public String getCrypted() throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
@@ -298,59 +306,70 @@ public class Handler extends Thread {
 	@Override
 	public void run(){
 		try{
-			int i = 0;
 			String response;
 			
 			Base64.Encoder encoder=Base64.getEncoder();//ENCODER OBJECT
 			Base64.Decoder decoder=Base64.getDecoder();//DECODER OBJECT
 			this.handshake(this.pw,this.br,encoder,decoder);
-			while(i==0){
-				
-				this.sendCrypted("1 Login - 2 Sign in\n");
+
+			while(!this.auth){
+				System.out.println("Works");
+				this.sendCrypted("1 Login - 2 Sign in\n".getBytes());
 				response=this.getCrypted();
 				int r=Integer.parseInt(response);
 				if(r==1){
-					this.sendCrypted("\nYou selected the option: LOGIN\nType in your username");
+					this.sendCrypted("\nYou selected the option: LOGIN\nType in your username".getBytes());
 					String username=this.getCrypted();
 					if(!username.isEmpty()){
 						this.name=username;
-						this.sendCrypted("\nNow type in your password");
+						this.sendCrypted("\nNow type in your password".getBytes());
 						String password=this.getCrypted();
-						if(passwordChecker(password)){
+						if(this.passwordChecker(password)){
 							this.auth=true;
 							System.out.println("Auth");
+						}else{
+							this.sendCrypted("\nSomething went wrong1!".getBytes());
 						}
 					}else{
-						this.sendCrypted("\nSomething went wrong!");
+						this.sendCrypted("\nSomething went wrong2!".getBytes());
 					}
 				}else{
 					if(r==2){
 						String password1="";
 						String password2="";
+						int spec=3;
 						do{
-							this.sendCrypted("\nYou selected the option: SIGN IN\nType in your username:");
+							this.sendCrypted("\nYou selected the option: SIGN IN\nType in your username:".getBytes());
 							String username=this.getCrypted();
 							if(!username.isEmpty()){
 								this.name=username;
-								this.sendCrypted("\nNow type in your password (Minimum 8 char):");
+
+								this.sendCrypted("\nNow type in your password (Minimum 8 char):".getBytes());
 								password1=this.getCrypted();
-								this.sendCrypted("\nNow please retype your password:");
+
+								this.sendCrypted("\nNow please retype your password:".getBytes());
 								password2=this.getCrypted();
-								if(!password1.equals(password2)||(password1.length()<8)){
-									this.sendCrypted("Try again");
+
+								this.sendCrypted("\nNow please send your specialization\n0 for Chemistry\n1 for Genetics\n2 for Statician".getBytes());
+								spec=Integer.valueOf(this.getCrypted());
+							
+								if(!password1.equals(password2)||(password1.length()<8)||spec<0||spec>2){
+									this.sendCrypted("Try again".getBytes());
 								}
 							}
 						}while((!password1.equals(password2)));
 						passwordWriter(password1);
-						this.sendCrypted("Registered Successfully\nYou can now Login");
+						this.setSpec(spec);
+						this.sendCrypted("Registered Successfully\nYou can now Login".getBytes());
 					}else{
-						this.sendCrypted("Something went wrong");
+						this.sendCrypted("Something went wrong".getBytes());
 					}
 				}
 				
 			}
 			while(true){
-				break;
+				this.sendCrypted("\nWhat operation do you wish to do:\n0 for uploading a file\n1 for downloading a file NOT IMPLEMENTED DOWNLOAD DLC".getBytes());
+				
 			}
 			//ELABORATE DATA
 		}catch(IOException | NoSuchAlgorithmException e) {
