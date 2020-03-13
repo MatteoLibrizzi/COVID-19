@@ -1,10 +1,14 @@
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
@@ -294,13 +298,28 @@ public class Handler extends Thread {
 		this.pw.println(msgS);
 	}
 
-	public String getCrypted() throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
+	public byte[] getCrypted() throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
 			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
 		String msgS=this.br.readLine();
 		byte[] msgB=this.decoder.decode(msgS);
 		msgB=decrypt(this.key, this.iv, msgB);
-		msgS=new String(msgB);
-		return msgS;
+		return msgB;
+	}
+
+	public byte[] file2Bytes(String path) throws IOException {
+		File f=new File(path);
+		byte[] fileB=new byte[(int)f.length()];
+		FileInputStream fis=new FileInputStream(f);
+		fis.read(fileB);
+		fis.close();
+		return fileB;
+	}
+
+	public void bytes2File(byte[] fileB) throws IOException {
+		File file=new File("./SentFile/"+this.name);
+		OutputStream os=new FileOutputStream(file);
+		os.write(fileB);
+		os.close();
 	}
 
 	@Override
@@ -315,15 +334,15 @@ public class Handler extends Thread {
 			while(!this.auth){
 				System.out.println("Works");
 				this.sendCrypted("1 Login - 2 Sign in\n".getBytes());
-				response=this.getCrypted();
+				response=new String(this.getCrypted());
 				int r=Integer.parseInt(response);
 				if(r==1){
 					this.sendCrypted("\nYou selected the option: LOGIN\nType in your username".getBytes());
-					String username=this.getCrypted();
+					String username=new String(this.getCrypted());
 					if(!username.isEmpty()){
 						this.name=username;
 						this.sendCrypted("\nNow type in your password".getBytes());
-						String password=this.getCrypted();
+						String password=new String(this.getCrypted());
 						if(this.passwordChecker(password)){
 							this.auth=true;
 							System.out.println("Auth");
@@ -340,26 +359,26 @@ public class Handler extends Thread {
 						int spec=3;
 						do{
 							this.sendCrypted("\nYou selected the option: SIGN IN\nType in your username:".getBytes());
-							String username=this.getCrypted();
+							String username=new String(this.getCrypted());
 							if(!username.isEmpty()){
 								this.name=username;
 
 								this.sendCrypted("\nNow type in your password (Minimum 8 char):".getBytes());
-								password1=this.getCrypted();
+								password1=new String(this.getCrypted());
 
 								this.sendCrypted("\nNow please retype your password:".getBytes());
-								password2=this.getCrypted();
+								password2=new String(this.getCrypted());
 
 								this.sendCrypted("\nNow please send your specialization\n0 for Chemistry\n1 for Genetics\n2 for Statician".getBytes());
-								spec=Integer.valueOf(this.getCrypted());
+								spec=Integer.valueOf(new String(this.getCrypted()));
 							
 								if(!password1.equals(password2)||(password1.length()<8)||spec<0||spec>2){
 									this.sendCrypted("Try again".getBytes());
 								}
 							}
 						}while((!password1.equals(password2)));
-						passwordWriter(password1);
 						this.setSpec(spec);
+						passwordWriter(password1);
 						this.sendCrypted("Registered Successfully\nYou can now Login".getBytes());
 					}else{
 						this.sendCrypted("Something went wrong".getBytes());
@@ -367,9 +386,21 @@ public class Handler extends Thread {
 				}
 				
 			}
-			while(true){
-				this.sendCrypted("\nWhat operation do you wish to do:\n0 for uploading a file\n1 for downloading a file NOT IMPLEMENTED DOWNLOAD DLC".getBytes());
-				
+			boolean loop=true;
+			while(loop){
+				this.sendCrypted("\nType in \n'PATH' if you wish to send a file\nor\nGETFILE to request a file".getBytes());
+				String rec=new String(this.getCrypted());
+				if((rec.equals("PATH"))||(rec.equals("GETFILE"))){
+					if(rec.equals("PATH")){
+						byte[] fileB=this.getCrypted();
+						bytes2File(fileB);
+						this.sendCrypted(("Thank you "+this.name+" we saved the file correctly").getBytes());
+					}else{
+						String user=new String(this.getCrypted());
+						byte[] fileB=file2Bytes("./SentFile/"+user);
+						this.sendCrypted(fileB);
+					}
+				}
 			}
 			//ELABORATE DATA
 		}catch(IOException | NoSuchAlgorithmException e) {

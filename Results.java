@@ -7,9 +7,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -18,6 +20,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
+import java.sql.Time;
 import java.util.Base64;
 import java.util.concurrent.*;
 import javax.crypto.BadPaddingException;
@@ -28,23 +31,26 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import java.security.*;
-
+import java.io.RandomAccessFile;
 
 //need to generate and send symmetric key in handshake()
 public class Results extends Thread{
 	public static final int port=1024;
 	private Socket socket;
+	private String name;
 	private PrintWriter pw;
 	private BufferedReader br;
 	private Key key=null;
 	private byte[] iv=null;
 	private Base64.Encoder encoder;
+	private Base64.Decoder decoder;
 
 	public Results() throws UnknownHostException, IOException {
 		this.socket=new Socket("localhost",port);
 		this.pw=new PrintWriter(socket.getOutputStream(),true);
 		this.br=new BufferedReader(new InputStreamReader(socket.getInputStream()));
 		this.encoder=Base64.getEncoder();
+		this.decoder=Base64.getDecoder();
 		this.key=null;
 		this.iv=null;
 	}
@@ -122,10 +128,6 @@ public class Results extends Thread{
         Cipher cipher = Cipher.getInstance(key.getAlgorithm() + "/ECB/NoPadding");
         cipher.init(Cipher.DECRYPT_MODE, key);
         return cipher.doFinal(ciphertext);
-    }
-
-    public static void buildPayload(byte[] cryptedData,byte[] hashData){
-
     }
 
     public static void send(byte[] payload,PrintWriter pw) throws UnknownHostException,IOException{
@@ -231,6 +233,31 @@ public class Results extends Thread{
 		
 	}
 
+	public byte[] getCrypted() throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
+			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+		String msgS=this.br.readLine();
+		byte[] msgB=this.decoder.decode(msgS);
+		msgB=decrypt(this.key, this.iv, msgB);
+		return msgB;
+	}
+
+	public byte[] file2Bytes(String path) throws IOException {
+		File f=new File(path);
+		byte[] fileB=new byte[(int)f.length()];
+		FileInputStream fis=new FileInputStream(f);
+		fis.read(fileB);
+		fis.close();
+		return fileB;
+	}
+
+	public boolean bytes2File(byte[] fileB,String name) throws IOException {
+		File file=new File("./GetFile/"+name);
+		OutputStream os=new FileOutputStream(file);
+		os.write(fileB);
+		os.close();
+		return true;
+	}
+
     public static void main(String args[])throws FileNotFoundException,IOException, InvalidKeyException,
 			NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, IllegalBlockSizeException,
 			BadPaddingException, InterruptedException, InvalidAlgorithmParameterException {
@@ -251,7 +278,25 @@ public class Results extends Thread{
 			if(msg.equals("break")){
 				results.socket.close();
 			}else{
-				results.sendCrypted(msg.getBytes());
+				if(msg.equals("PATH")){
+					results.sendCrypted("PATH".getBytes("UTF-8"));
+					System.out.println("\nNow type in the path to the file");
+					msg=System.console().readLine();
+					byte[] file=results.file2Bytes(msg);
+					results.sendCrypted(file);
+				}else{
+					if(msg.equals("GETFILE")){
+						results.sendCrypted("GETFILE".getBytes("UTF-8"));
+						System.out.println("\nNow type in the name of the scientist whose file you want to get");
+						msg=System.console().readLine();
+						String resName=msg;
+						results.sendCrypted(msg.getBytes("UTF-8"));
+
+						byte[] fileB =results.getCrypted();
+						results.bytes2File(fileB, resName);
+					}
+					results.sendCrypted(msg.getBytes());
+				}
 			}
 		}
 		
