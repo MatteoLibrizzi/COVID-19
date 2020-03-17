@@ -6,7 +6,6 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
-
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -17,11 +16,20 @@ public class Receiver extends Thread{
 	BufferedReader br;
 	Key key;
 	byte[] iv;
+	boolean mode;
 
     public Receiver(BufferedReader br){
-        this.br=br;
+		this.br=br;
+		this.mode=true;
 	}
 
+	public void nop(){//toglie il br al Receiver così da impedirgli di leggerlo
+		this.br=null;
+	}
+
+	public void yep(BufferedReader br){
+		this.br=br;
+	}
 	public void setKey(Key key){
 		this.key=key;
 	}
@@ -44,11 +52,15 @@ public class Receiver extends Thread{
 			Base64.Decoder decoder=Base64.getDecoder();
             while(true){
 
-                //Client receiver, always listening and printing right after, all the controls on the messagge are done by the server
-				String msgS=br.readLine();
-				byte[] msgB=decrypt(this.key, this.iv, decoder.decode(msgS));
-				msgS=new String(msgB);
-                System.out.println("\n"+msgS);
+				//Client receiver, always listening and printing right after, all the controls on the messagge are done by the server
+				while(this.isMode()){
+					String msgS="";
+					msgS=this.br.readLine();
+					byte[] msgB=decrypt(this.key, this.iv, decoder.decode(msgS));
+					msgS=new String(msgB);
+					System.out.println("\n"+msgS);
+				}
+								
             }
         }catch(IOException e){
             e.printStackTrace();
@@ -74,4 +86,12 @@ public class Receiver extends Thread{
 			e.printStackTrace();
 		}
     }
+
+	public boolean isMode() {
+		return mode;
+	}
+
+	public void setMode(boolean mode) {
+		this.mode = mode;
+	}
 }

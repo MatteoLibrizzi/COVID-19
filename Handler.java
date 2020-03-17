@@ -2,21 +2,16 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -81,7 +76,6 @@ public class Handler extends Thread {
 	public static KeyPair generateAsymmetricKey() throws NoSuchAlgorithmException {
 		KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
 		generator.initialize(4096);
-		long start = System.currentTimeMillis();
 		KeyPair keyPair = generator.generateKeyPair();
 		return keyPair;
 	}
@@ -118,8 +112,7 @@ public class Handler extends Thread {
 		return iv;
 	}
 
-	public static byte[] removePrePadding(byte[] B, int length) {
-		int a = 0;
+	public static byte[] removePrePadding(byte[] B, int length) {//this function is used to remove the padding in the asymmetric communication as the minimum length of a packet might be more than the length of the messagge
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		for (int i = B.length - length; i < B.length; i++) {
 			baos.write(B[i]);
@@ -146,7 +139,7 @@ public class Handler extends Thread {
 
 	public static void sendAsym(byte[] messagge, PublicKey key, PrintWriter pw, Base64.Encoder encoder)
 			throws InterruptedException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
-			IllegalBlockSizeException, BadPaddingException {
+			IllegalBlockSizeException, BadPaddingException {//sends the length of the messagge uncrypted and the messagge crypted afterwards so the receiver knows what part of the messagge is the padding
 
 		pw.println(messagge.length);
 		TimeUnit.MILLISECONDS.sleep(100);
@@ -158,7 +151,7 @@ public class Handler extends Thread {
 
 	public static byte[] getAsym(PrivateKey key, BufferedReader br, Base64.Decoder decoder)
 			throws NumberFormatException, IOException, InterruptedException, InvalidKeyException,
-			NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+			NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {//receives the length of the message and afterwards the encrypted messagge
 		int length = Integer.valueOf(br.readLine());
 
 		TimeUnit.MILLISECONDS.sleep(10);
@@ -172,7 +165,7 @@ public class Handler extends Thread {
 
 	public static void sendSym(byte[] messagge, Key key, byte[] iv, PrintWriter pw, Base64.Encoder encoder)
 			throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException,
-			BadPaddingException, InvalidAlgorithmParameterException {
+			BadPaddingException, InvalidAlgorithmParameterException {//takes in the bytes of the messagge, encrypts it and sends it
 		byte[] encryptedMessaggeB = encrypt(key, iv, messagge);
 		String encryptedMessaggeS = encoder.withoutPadding().encodeToString(encryptedMessaggeB);
 		pw.println(encryptedMessaggeS);
@@ -180,7 +173,7 @@ public class Handler extends Thread {
 
 	public static byte[] getSym(Key key, byte[] iv, BufferedReader br, Base64.Decoder decoder)
 			throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
-			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {//receives the encrypted messagge on br and returns it as bytes
 		String encryptedMessaggeS = br.readLine();
 		byte[] encryptedMessaggeB = decoder.decode(encryptedMessaggeS);
 		byte[] messagge = decrypt(key, iv, encryptedMessaggeB);
@@ -189,7 +182,7 @@ public class Handler extends Thread {
 
 	public void handshake(PrintWriter pw, BufferedReader br, Base64.Encoder encoder, Base64.Decoder decoder)
 			throws NoSuchAlgorithmException, IOException, InvalidKeySpecException, InvalidKeyException,
-			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InterruptedException {
+			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InterruptedException {//exchange of the public keys and of the symmetric key MORE COMMENTS ON results.java
 		KeyPair myKeypair = generateAsymmetricKey();// GENERATING THE KEY
 		String myPubKey = encoder.withoutPadding().encodeToString(myKeypair.getPublic().getEncoded());// tranforming the
 																										// key in a
@@ -266,11 +259,8 @@ public class Handler extends Thread {
 				passwordB = password.getBytes("UTF-8");
 				hashB = hash(passwordB, "SHA-256");
 				hash = toHex(hashB);
-				System.out.println(" "+hash+" ");
-				System.out.println(" "+ss[1]+" ");
 				if (ss[1].equals(hash)) {
 					found = true;
-					System.out.println("Same");
 				}
 			}
 		}
@@ -278,7 +268,7 @@ public class Handler extends Thread {
 		return found;
 	}
 
-	public void passwordWriter(String plainPW) throws IOException, NoSuchAlgorithmException {
+	public void passwordWriter(String plainPW) throws IOException, NoSuchAlgorithmException {//this writes on a document the username, password and salt, the last field is an integer representing the specialization
 		FileWriter writer = new FileWriter(this.db, true);
 		byte[] saltB = saltGen();
 		String salt = toHex(saltB);
@@ -291,7 +281,7 @@ public class Handler extends Thread {
 	}
 
 	public void sendCrypted(byte[] msgB) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException,
-			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {//THIS NEEDS TO TAKE IN BYTES (remember to change it in results too)
+			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {//send a crypted messagge using symmetric crypto
 		
 		msgB=encrypt(this.key, this.iv, msgB);
 		String msgS=this.encoder.encodeToString(msgB);
@@ -299,14 +289,14 @@ public class Handler extends Thread {
 	}
 
 	public byte[] getCrypted() throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
-			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {//gets a crypted messagge using symmetric crypto
 		String msgS=this.br.readLine();
 		byte[] msgB=this.decoder.decode(msgS);
 		msgB=decrypt(this.key, this.iv, msgB);
 		return msgB;
 	}
 
-	public byte[] file2Bytes(String path) throws IOException {
+	public byte[] file2Bytes(String path) throws IOException {//transform a file into bytes so it can be sent to the client 
 		File f=new File(path);
 		byte[] fileB=new byte[(int)f.length()];
 		FileInputStream fis=new FileInputStream(f);
@@ -315,11 +305,52 @@ public class Handler extends Thread {
 		return fileB;
 	}
 
-	public void bytes2File(byte[] fileB) throws IOException {
+	public void bytes2File(byte[] fileB) throws IOException {//transform byte[] into a file and saves it into a folder
 		File file=new File("./SentFile/"+this.name);
-		OutputStream os=new FileOutputStream(file);
+		FileOutputStream os=new FileOutputStream(file);
 		os.write(fileB);
 		os.close();
+	}
+
+	public void sendFile() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
+			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, IOException,
+			InterruptedException {//gets crypted file checking with hash for possible modifications
+		TimeUnit.MILLISECONDS.sleep(10);
+
+		byte[] fileB=this.getCrypted();//3
+
+		bytes2File(fileB);
+		TimeUnit.MILLISECONDS.sleep(10);//4
+
+		byte[] hc=this.getCrypted();//5
+
+		byte[] hs=hash(fileB,"SHA-256");//CODE DOESNT GET TO THE IF NEED TO UNDERSTAND WHY AND FIX
+		if(!Arrays.equals(hc, hs)){
+			this.sendCrypted("\n!!!CAREFUL!!!\nThis didn't work, try again".getBytes());//6
+		}else{
+			this.sendCrypted("\n".getBytes());//6
+		}
+	}
+
+	public void getFile() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
+			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, IOException,
+			InterruptedException {//sends file to client checking for possible modifications WORKS ON THIS SIDE DOESN'T ON THE OTHER
+		String user=new String(this.getCrypted());//1 client sends name of the researcher
+		
+		byte[] fileB=file2Bytes("./SentFile/"+user);//gets the bytes of the file
+		TimeUnit.MILLISECONDS.sleep(1);
+		this.sendCrypted(fileB);//2 send bytes (this part has been tested)
+
+		TimeUnit.MILLISECONDS.sleep(100);
+
+		byte[] hc=this.getCrypted();//gets hash
+		byte[] hs=hash(fileB, "SHA-256");
+		
+		if(!Arrays.equals(hs,hc)){//checks if the hashes are the same end sends an error if not
+			this.sendCrypted("\n!!!CAREFUL!!!\nThis didn't work, try again".getBytes());
+		}else{
+			this.sendCrypted("\nSuccessful, you can find the file under 'GetFile'".getBytes());
+		}
 	}
 
 	@Override
@@ -332,25 +363,23 @@ public class Handler extends Thread {
 			this.handshake(this.pw,this.br,encoder,decoder);
 
 			while(!this.auth){
-				System.out.println("Works");
 				this.sendCrypted("1 Login - 2 Sign in\n".getBytes());
 				response=new String(this.getCrypted());
 				int r=Integer.parseInt(response);
 				if(r==1){
 					this.sendCrypted("\nYou selected the option: LOGIN\nType in your username".getBytes());
-					String username=new String(this.getCrypted());
+					String username=new String(this.getCrypted());//client sends username which is saved as an attribute
 					if(!username.isEmpty()){
 						this.name=username;
-						this.sendCrypted("\nNow type in your password".getBytes());
+						this.sendCrypted("\nNow type in your password".getBytes());//client sends password, in retrospect, password should be hashed by the client not by the server to add one level of security
 						String password=new String(this.getCrypted());
 						if(this.passwordChecker(password)){
-							this.auth=true;
-							System.out.println("Auth");
+							this.auth=true;//if the password is correct this attribute is changed and the client is granted access to the documents
 						}else{
-							this.sendCrypted("\nSomething went wrong1!".getBytes());
+							this.sendCrypted("\nSomething went wrong!".getBytes());
 						}
 					}else{
-						this.sendCrypted("\nSomething went wrong2!".getBytes());
+						this.sendCrypted("\nSomething went wrong!".getBytes());//if username is empty or password is wrong client receives an error and gets sent back to the LOGIN/SIGNIN MENU
 					}
 				}else{
 					if(r==2){
@@ -359,7 +388,7 @@ public class Handler extends Thread {
 						int spec=3;
 						do{
 							this.sendCrypted("\nYou selected the option: SIGN IN\nType in your username:".getBytes());
-							String username=new String(this.getCrypted());
+							String username=new String(this.getCrypted());//client sends username which gets saved as an attribute
 							if(!username.isEmpty()){
 								this.name=username;
 
@@ -367,41 +396,45 @@ public class Handler extends Thread {
 								password1=new String(this.getCrypted());
 
 								this.sendCrypted("\nNow please retype your password:".getBytes());
-								password2=new String(this.getCrypted());
+								password2=new String(this.getCrypted());//client sends the password twice
 
 								this.sendCrypted("\nNow please send your specialization\n0 for Chemistry\n1 for Genetics\n2 for Statician".getBytes());
-								spec=Integer.valueOf(new String(this.getCrypted()));
+								spec=Integer.valueOf(new String(this.getCrypted()));//client sends specialization as an integer
 							
-								if(!password1.equals(password2)||(password1.length()<8)||spec<0||spec>2){
+								if(!password1.equals(password2)||(password1.length()<8)||spec<0||spec>2){//if the passwords are minimum 8 char and are the same and the spec makes sense client moves on else gets an error messagge
 									this.sendCrypted("Try again".getBytes());
 								}
 							}
-						}while((!password1.equals(password2)));
+						}while((!password1.equals(password2))||(password1.length()<8)||spec<0||spec>2);
 						this.setSpec(spec);
 						passwordWriter(password1);
-						this.sendCrypted("Registered Successfully\nYou can now Login".getBytes());
+						this.sendCrypted("Registered Successfully\nYou can now Login".getBytes());//spec is set as an attribute and the client is registered via passwordWriter(...) function
 					}else{
-						this.sendCrypted("Something went wrong".getBytes());
+						this.sendCrypted("Something went wrong".getBytes());//if r is neither 1 or 2 client receives an error messagge
 					}
 				}
 				
 			}
 			boolean loop=true;
-			while(loop){
-				this.sendCrypted("\nType in \n'PATH' if you wish to send a file\nor\nGETFILE to request a file".getBytes());
-				String rec=new String(this.getCrypted());
-				if((rec.equals("PATH"))||(rec.equals("GETFILE"))){
-					if(rec.equals("PATH")){
-						byte[] fileB=this.getCrypted();
-						bytes2File(fileB);
-						this.sendCrypted(("Thank you "+this.name+" we saved the file correctly").getBytes());
+			
+			while(loop){//this loop is infinite unless client types quit in which case socket gets closed and thread interrupted
+				this.sendCrypted("\nType in \n'SENDFILE' if you wish to send a file\nor\n'GETFILE' to request a file".getBytes());
+				String rec=new String(this.getCrypted());//1 client sends his choice
+
+				if(rec.equals("SENDFILE")){
+					this.sendFile();
+				}else{
+					if(rec.equals("GETFILE")){
+					this.getFile();
 					}else{
-						String user=new String(this.getCrypted());
-						byte[] fileB=file2Bytes("./SentFile/"+user);
-						this.sendCrypted(fileB);
+						if(rec.equals("QUIT")){
+							loop=false;
+						}
 					}
 				}
 			}
+			this.socket.close();
+			this.interrupt();
 			//ELABORATE DATA
 		}catch(IOException | NoSuchAlgorithmException e) {
 			e.printStackTrace();

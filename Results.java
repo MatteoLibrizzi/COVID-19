@@ -44,6 +44,7 @@ public class Results extends Thread{
 	private byte[] iv=null;
 	private Base64.Encoder encoder;
 	private Base64.Decoder decoder;
+	private Receiver receiver;
 
 	public Results() throws UnknownHostException, IOException {
 		this.socket=new Socket("localhost",port);
@@ -67,7 +68,6 @@ public class Results extends Thread{
     public static KeyPair generateAsymmetricKey() throws NoSuchAlgorithmException {
 		KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
 		generator.initialize(4096);
-		long start = System.currentTimeMillis();
 		KeyPair keyPair = generator.generateKeyPair();
 		return keyPair;
 	}
@@ -135,8 +135,7 @@ public class Results extends Thread{
         pw.println(sPayLoad);
     }
 
-	public static byte[] removePrePadding(byte[] B,int length){
-		int a=0;
+	public static byte[] removePrePadding(byte[] B,int length){//this function is used to remove the padding in the asymmetric communication as the minimum length of a packet might be more than the length of the messagge
 		ByteArrayOutputStream baos=new ByteArrayOutputStream();
 		for(int i=B.length-length;i<B.length;i++){
 			baos.write(B[i]);
@@ -147,7 +146,8 @@ public class Results extends Thread{
 
 	public static void sendAsym(byte[] messagge,PublicKey key,PrintWriter pw,Base64.Encoder encoder) throws InterruptedException,
 			InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException,
-			BadPaddingException {
+			BadPaddingException {//sends the length of the messagge uncrypted and the messagge crypted afterwards so the receiver knows what part of the messagge is the padding
+
 
 		pw.println(messagge.length);
 		TimeUnit.MILLISECONDS.sleep(100);
@@ -159,7 +159,8 @@ public class Results extends Thread{
 
 	public static byte[] getAsym(PrivateKey key,BufferedReader br,Base64.Decoder decoder)
 			throws NumberFormatException, IOException, InterruptedException, InvalidKeyException,
-			NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+			NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {//receives the length of the message and afterwards the encrypted messagge
+
 		int length=Integer.valueOf(br.readLine());
 
 		TimeUnit.MILLISECONDS.sleep(10);
@@ -173,7 +174,8 @@ public class Results extends Thread{
 
 	public static void sendSym(byte[] messagge,Key key,byte[] iv,PrintWriter pw,Base64.Encoder encoder)
 			throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException,
-			BadPaddingException, InvalidAlgorithmParameterException {
+			BadPaddingException, InvalidAlgorithmParameterException {//takes in the bytes of the messagge, encrypts it and sends it
+
 		byte[] encryptedMessaggeB=encrypt(key, iv, messagge);
 		String encryptedMessaggeS=encoder.withoutPadding().encodeToString(encryptedMessaggeB);
 		pw.println(encryptedMessaggeS);
@@ -181,7 +183,8 @@ public class Results extends Thread{
 
 	public static byte[] getSym(Key key,byte[] iv,BufferedReader br,Base64.Decoder decoder) throws IOException,
 			InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException,
-			BadPaddingException, InvalidAlgorithmParameterException {
+			BadPaddingException, InvalidAlgorithmParameterException {//receives the encrypted messagge on br and returns it as bytes
+
 		String encryptedMessaggeS=br.readLine();
 		byte[] encryptedMessaggeB=decoder.decode(encryptedMessaggeS);
 		byte[] messagge = decrypt(key, iv, encryptedMessaggeB);
@@ -190,42 +193,44 @@ public class Results extends Thread{
 
     public void handshake(PrintWriter pw,BufferedReader br,Base64.Encoder encoder,Base64.Decoder decoder) throws IOException,NoSuchAlgorithmException,InvalidKeySpecException,
 			InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException,
-			InterruptedException {
+			InterruptedException {//exchange of the public keys and of the symmetric key
+
         
         String received=br.readLine();
-        byte[] sPubKeyByte=decoder.decode(received);
+        byte[] sPubKeyByte=decoder.decode(received);//bytes of the server public key
 
         X509EncodedKeySpec sPubKeySpec=new X509EncodedKeySpec(sPubKeyByte);
         KeyFactory keyFactory=KeyFactory.getInstance("RSA");
-        PublicKey sPubKey=keyFactory.generatePublic(sPubKeySpec);
+        PublicKey sPubKey=keyFactory.generatePublic(sPubKeySpec);//using key factory generates a public key instance
 
-        KeyPair myKeypair=generateAsymmetricKey();
+        KeyPair myKeypair=generateAsymmetricKey();//client generates assymetric key
 
         String myPubKey=encoder.withoutPadding().encodeToString(myKeypair.getPublic().getEncoded());
-        pw.println(myPubKey);
+        pw.println(myPubKey);//pub key is encrypted with server's pub key and sent
 		
 		byte[] confirmByte=getAsym(myKeypair.getPrivate(), br, decoder);
 		String confirmString=new String(confirmByte);
 		
-		if(confirmString.equals("Confirm")){
-			Key mySymKey=generateSymmetricKey();
+		if(confirmString.equals("Confirm")){//this confirm could be implemented using hashes
+			Key mySymKey=generateSymmetricKey();//client generates symmetric key (not sure if server side is supposed to do that)
 			byte[] iv=generateInitVector();
 
-			sendAsym(iv, sPubKey, pw, encoder);
+			sendAsym(iv, sPubKey, pw, encoder);//then sends iv
 			TimeUnit.MILLISECONDS.sleep(100);
 
 			byte[] simKey=mySymKey.getEncoded();
-			sendAsym(simKey, sPubKey, pw, encoder);
+			sendAsym(simKey, sPubKey, pw, encoder);//and the sym key encoded both crypted with server's pub key
 			
-			this.key=mySymKey;
+			this.key=mySymKey;//both then are saved as attributes
 			this.iv=iv;
-		}else{
+		}else{//if server doesn't confirm something went wrong and the client should try to reconnect
 			System.out.println("Something went Wrong!");
 		}
 	}
 	
 	public void sendCrypted(byte[] msgB) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException,
-			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+			NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {//send a crypted messagge using symmetric crypto
+		
 			
 		msgB=encrypt(this.key, this.iv, msgB);
 		String msgS=this.encoder.encodeToString(msgB);
@@ -234,14 +239,18 @@ public class Results extends Thread{
 	}
 
 	public byte[] getCrypted() throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
-			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {//gets a crypted messagge using symmetric crypto
+
 		String msgS=this.br.readLine();
+		System.out.println(msgS+"STOP");
 		byte[] msgB=this.decoder.decode(msgS);
 		msgB=decrypt(this.key, this.iv, msgB);
+		
 		return msgB;
 	}
 
-	public byte[] file2Bytes(String path) throws IOException {
+	public byte[] file2Bytes(String path) throws IOException {//transform a file into bytes so it can be sent to the client 
+
 		File f=new File(path);
 		byte[] fileB=new byte[(int)f.length()];
 		FileInputStream fis=new FileInputStream(f);
@@ -250,52 +259,112 @@ public class Results extends Thread{
 		return fileB;
 	}
 
-	public boolean bytes2File(byte[] fileB,String name) throws IOException {
+	public void bytes2File(byte[] fileB,String name) throws IOException {//transform byte[] into a file and saves it into a folder
+
 		File file=new File("./GetFile/"+name);
 		OutputStream os=new FileOutputStream(file);
 		os.write(fileB);
 		os.close();
-		return true;
+	}
+
+	public static byte[] hash(byte[] input, String algorithm) throws NoSuchAlgorithmException {// takes in a byte array
+		// and an hash
+		// algorithm. gives out
+		// the hash
+		MessageDigest md = MessageDigest.getInstance(algorithm);
+
+		byte[] output = md.digest(input);
+		return output;
+	}
+
+	public void sendFile() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
+			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, IOException,
+			InterruptedException {//sends a file to the server
+
+		this.sendCrypted("SENDFILE".getBytes("UTF-8"));//1
+
+		System.out.println("\nNow type in the path to the file");
+		//2
+
+		String path=System.console().readLine();
+		byte[] file=this.file2Bytes(path);//using this function gets the bytes of the file and sends them encrypted
+		this.sendCrypted(file);//3
+
+		TimeUnit.MILLISECONDS.sleep(100);//4
+
+		byte[] hc=hash(file,"SHA-256");//sends hash so server can check if it was received correctly
+		this.sendCrypted(hc);//5
+					
+		System.out.println(new String(this.getCrypted()));//6 in case something went wrong client gets to know it and can resend
+
+	}
+
+	public void getFile() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
+			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, IOException,
+			InterruptedException {//requests a file to the server, doesn't work on client side :_c
+		
+		this.sendCrypted("GETFILE".getBytes("UTF-8"));
+		System.out.println("\nNow type in the name of the scientist whose file you want to get");
+		String msg=System.console().readLine();//the file are saved using the researcher's name
+				
+		String resName=msg;
+		this.sendCrypted(msg.getBytes("UTF-8"));//1
+
+		byte[] fileB =this.getCrypted();//2 CLIENT DOESN'T RECEIVE IT
+		//System.out.println(toHex(fileB)+" FILE");
+		this.bytes2File(fileB, resName);
+
+		byte[] h1=hash(fileB, "SHA-256");//sends hash to confirm its correctness
+		this.sendCrypted(h1);
+		System.out.println(new String(this.getCrypted()));//gets "ok" or an error messagge
+
+
 	}
 
     public static void main(String args[])throws FileNotFoundException,IOException, InvalidKeyException,
 			NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, IllegalBlockSizeException,
 			BadPaddingException, InterruptedException, InvalidAlgorithmParameterException {
+
 		Base64.Encoder encoder=Base64.getEncoder();
 		Base64.Decoder decoder=Base64.getDecoder();
 		
         Results results=new Results();
 
-        Receiver r=new Receiver(results.br);//YOU STILL NEED TO START THE THREAD
+        results.receiver=new Receiver(results.br);
 		
-		results.handshake(results.pw, results.br,encoder,decoder);
-		r.setKey(results.key);
-		r.setIV(results.iv);
+		results.handshake(results.pw, results.br,encoder,decoder);//key xcng
+		results.receiver.setKey(results.key);
+		results.receiver.setIV(results.iv);
 
-		r.start();
+		results.receiver.start();
 		while(true){
+
 			String msg=System.console().readLine();
+
 			if(msg.equals("break")){
+				results.sendCrypted("QUIT".getBytes("UTF-8");
 				results.socket.close();
 			}else{
-				if(msg.equals("PATH")){
-					results.sendCrypted("PATH".getBytes("UTF-8"));
-					System.out.println("\nNow type in the path to the file");
-					msg=System.console().readLine();
-					byte[] file=results.file2Bytes(msg);
-					results.sendCrypted(file);
-				}else{
-					if(msg.equals("GETFILE")){
-						results.sendCrypted("GETFILE".getBytes("UTF-8"));
-						System.out.println("\nNow type in the name of the scientist whose file you want to get");
-						msg=System.console().readLine();
-						String resName=msg;
-						results.sendCrypted(msg.getBytes("UTF-8"));
 
-						byte[] fileB =results.getCrypted();
-						results.bytes2File(fileB, resName);
+				if(msg.equals("SENDFILE")){
+					//results.receiver.sleep(100);
+					//results.receiver.interrupt();
+
+					results.sendFile();
+					//results.receiver.start();
+					msg="";
+				}else{
+
+					if(msg.equals("GETFILE")){
+						//results.receiver.sleep(100);
+						//results.receiver.interrupt();
+						
+						results.getFile();
+						//results.receiver.start();
+						msg="";
+					}else{
+						results.sendCrypted(msg.getBytes());
 					}
-					results.sendCrypted(msg.getBytes());
 				}
 			}
 		}
